@@ -8,7 +8,7 @@ This means you can execute commands on your EC2 instances without needing to
 open SSH ports or manage SSH keys. The action uses the AWS Systems Manager
 Session Manager to establish a secure connection to your instance.
 
-# Usage
+## Usage
 
 ```yaml
 name: SSH For EC2 Action Example
@@ -83,7 +83,7 @@ permissions:
 | Parameter       | Description                                        | Default    |
 | --------------- | -------------------------------------------------- | ---------- |
 | ec2-instance-id | The ID of the ec2 instance you want to connect to. |            |
-| remote-user     | The user ssh with on the server                    |            |
+| remote-user     | The user on the server to run commands             |            |
 | region          | The region your ec2 instance is in.                | AWS_REGION |
 
 You don't need to set the `region` parameter if your instance is in the same
