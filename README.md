@@ -26,12 +26,11 @@ jobs:
           role-to-assume: arn:aws:iam::123456789012:role/MyRole
           aws-region: us-west-2
 
-      - name: SSH into EC2 instance
+      - name: Setup SSH Connection
         uses: bondz/ssh-ec2-action@v1
         with:
-          instance-id: i-ec2-instance-id
+          ec2-instance-id: i-ec2-instance-id
           remote-user: ec2-user
-          region: us-west-2
 
       - name: SSH into EC2 instance and run commands
         uses: appleboy/ssh-action@v1
