@@ -74,6 +74,7 @@ permissions:
 }
 ```
 
+<!-- prettier-ignore -->
 > [!NOTE]
 > Replace `i-ec2-instance-id` with the actual instance ID of your EC2 instance.
 
