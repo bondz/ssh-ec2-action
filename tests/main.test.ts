@@ -3,7 +3,7 @@ import * as core from '../__fixtures__/core.js'
 import { mockClient } from 'aws-sdk-client-mock'
 import { SendCommandCommand, SSMClient } from '@aws-sdk/client-ssm'
 import mocks from './mock.test'
-import { run } from '../src/main'
+import { run } from '../src/index'
 
 const mockedSSMClient = mockClient(SSMClient)
 
