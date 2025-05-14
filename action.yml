@@ -1,7 +1,7 @@
 name: Create an SSH Session to an EC2 instance via SSM
 description:
-  Establishes an SSH connection to EC2 via SSM using AWS SDK without
-  having to setup SSH keys
+  Establishes an SSH connection to EC2 via SSM using AWS SDK without having to
+  setup SSH keys
 author: Bond
 
 branding:
