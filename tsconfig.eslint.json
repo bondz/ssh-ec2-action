@@ -8,10 +8,11 @@
   "exclude": ["dist", "node_modules"],
   "include": [
     "__fixtures__",
-    "__tests__",
+    "tests",
     "src",
     "eslint.config.mjs",
     "jest.config.js",
-    "rollup.config.ts"
+    "rollup.config.ts",
+    "vitest.config.mts",
   ]
 }
