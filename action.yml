@@ -1,24 +1,28 @@
-name: The name of your action here
-description: Provide a description here
-author: Your name or organization here
+name: Create an SSH Session to an EC2 instance via SSM
+description:
+  Establishes an SSH connection to EC2 via SSM using AWS SDK, provides
+  connection details, and automatically cleans up resources post-job, without
+  having to setup ssh keys - eliminating long-lived tokens on your server.
+author: Bond
 
-# Add your action's branding here. This will appear on the GitHub Marketplace.
 branding:
-  icon: heart
-  color: red
+  icon: terminal
+  color: black
 
-# Define your inputs here.
 inputs:
-  milliseconds:
-    description: Your input description here
+  ec2-instance-id:
+    description: 'EC2 Instance ID to connect to.'
     required: true
-    default: '1000'
-
-# Define your outputs here.
-outputs:
-  time:
-    description: Your output description here
+  remote-user:
+    description: 'Remote user for SSH (e.g., ubuntu, ec2-user).'
+    required: true
+  aws-region:
+    description:
+      'AWS Region of the EC2 instance and SSM. Defaults to the same region your
+      AWS Authentication tokens are in'
+    required: false
 
 runs:
   using: node20
   main: dist/index.js
+  post: dist/cleanup/index.js
