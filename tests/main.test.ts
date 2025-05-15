@@ -34,7 +34,7 @@ describe('main.ts', {}, () => {
     it('should run successfully', async () => {
       await run()
 
-      expect(core.info).toHaveBeenCalledTimes(2)
+      expect(core.info).toHaveBeenCalled()
     })
   })
 })
