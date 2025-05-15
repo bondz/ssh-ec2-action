@@ -37,8 +37,6 @@ export async function run(): Promise<void> {
       region: awsRegion
     })
 
-    core.info('Determining AWS caller identity...')
-
     core.endGroup()
 
     core.startGroup('Setup SSH via SSM: Generating SSH Keys')
@@ -101,10 +99,9 @@ export async function run(): Promise<void> {
 
     core.startGroup('Setup SSH via SSM: Configuring Local SSH Client')
 
-    core.info(
-      `Configuring SSH alias '${SSH_HOST_ALIAS}' in ${path.join(SSH_DIR, 'config')}...`
-    )
     const sshConfigPath = path.join(SSH_DIR, 'config')
+    core.info(`Configuring SSH alias for EC2 Instance in ${sshConfigPath}...`)
+
     const proxyRunner =
       os.platform() === 'win32'
         ? 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
@@ -123,7 +120,7 @@ Host ${ec2InstanceId}
 `
     await fs.appendFile(sshConfigPath, sshConfigContent)
     await exec.exec('chmod', ['600', sshConfigPath])
-    core.info(`SSH config for alias '${SSH_HOST_ALIAS}' added/updated.`)
+    core.info(`SSH config alias for EC2 Instance added.`)
 
     core.endGroup()
 
@@ -134,7 +131,7 @@ Host ${ec2InstanceId}
     core.saveState('setupComplete', 'true')
 
     core.info(
-      `SSH setup via SSM complete. Use alias '${SSH_HOST_ALIAS}' for SSH/rsync.`
+      `SSH setup via SSM complete. Use your EC2 Instance ID: '${ec2InstanceId}' for SSH/rsync.`
     )
     core.endGroup()
   } catch (error: unknown) {
