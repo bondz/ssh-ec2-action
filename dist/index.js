@@ -60257,7 +60257,6 @@ async function run() {
         const ssmClient = new dist_cjs.SSMClient({
             region: awsRegion
         });
-        core.info('Determining AWS caller identity...');
         core.endGroup();
         core.startGroup('Setup SSH via SSM: Generating SSH Keys');
         await io.mkdirP(SSH_DIR);
@@ -60303,8 +60302,8 @@ async function run() {
         core.info('Command to add public key sent to EC2 instance. Waiting for propagation...');
         core.endGroup();
         core.startGroup('Setup SSH via SSM: Configuring Local SSH Client');
-        core.info(`Configuring SSH alias '${SSH_HOST_ALIAS}' in ${external_node_path_default().join(SSH_DIR, 'config')}...`);
         const sshConfigPath = external_node_path_default().join(SSH_DIR, 'config');
+        core.info(`Configuring SSH alias for EC2 Instance in ${sshConfigPath}...`);
         const proxyRunner = external_node_os_default().platform() === 'win32'
             ? 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
             : 'sh -c';
@@ -60321,13 +60320,13 @@ Host ${ec2InstanceId}
 `;
         await external_node_fs_namespaceObject.promises.appendFile(sshConfigPath, sshConfigContent);
         await exec.exec('chmod', ['600', sshConfigPath]);
-        core.info(`SSH config for alias '${SSH_HOST_ALIAS}' added/updated.`);
+        core.info(`SSH config alias for EC2 Instance added.`);
         core.endGroup();
         core.startGroup('Setup SSH via SSM: Finalizing');
         core.saveState('keyIdentifier', keyIdentifier);
         core.saveState('privateKeyPath', PRIVATE_KEY_PATH);
         core.saveState('setupComplete', 'true');
-        core.info(`SSH setup via SSM complete. Use alias '${SSH_HOST_ALIAS}' for SSH/rsync.`);
+        core.info(`SSH setup via SSM complete. Use your EC2 Instance ID: '${ec2InstanceId}' for SSH/rsync.`);
         core.endGroup();
     }
     catch (error) {
