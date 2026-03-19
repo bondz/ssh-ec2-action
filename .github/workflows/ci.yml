@@ -19,27 +19,18 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        id: setup-node
-        uses: actions/setup-node@v4
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
         with:
-          node-version-file: .node-version
-          cache: npm
+          cache: true
 
       - name: Install Dependencies
-        id: npm-ci
-        run: npm ci
+        run: vp install
 
-      - name: Check Format
-        id: npm-format-check
-        run: npm run format:check
-
-      - name: Lint
-        id: npm-lint
-        run: npm run lint
+      - name: Check
+        run: vp check
 
       - name: Test
-        id: npm-ci-test
-        run: npm run ci-test
+        run: vp test

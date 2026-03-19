@@ -1,6 +1,5 @@
 name: Create an SSH Session to an EC2 instance via SSM
-description:
-  Establishes an SSH connection to EC2 via SSM using AWS SDK without having to
+description: Establishes an SSH connection to EC2 via SSM using AWS SDK without having to
   setup SSH keys
 author: Bond
 
@@ -16,12 +15,11 @@ inputs:
     description: 'Remote user for SSH (e.g., ubuntu, ec2-user).'
     required: true
   aws-region:
-    description:
-      'AWS Region of the EC2 instance and SSM. Defaults to the same region your
+    description: 'AWS Region of the EC2 instance and SSM. Defaults to the same region your
       AWS Authentication tokens are in'
     required: false
 
 runs:
-  using: node20
+  using: node24
   main: dist/index.js
   post: dist/cleanup/index.js
