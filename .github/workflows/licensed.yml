@@ -27,18 +27,16 @@ jobs:
     steps:
       - name: Checkout
         id: checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
-      - name: Setup Node.js
-        id: setup-node
-        uses: actions/setup-node@v4
+      - name: Setup Vite+
+        uses: voidzero-dev/setup-vp@v1
         with:
-          node-version-file: .node-version
-          cache: npm
+          cache: true
 
       - name: Install Dependencies
-        id: npm-ci
-        run: npm ci
+        id: install
+        run: vp install
 
       - name: Setup Ruby
         id: setup-ruby

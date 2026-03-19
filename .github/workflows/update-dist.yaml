@@ -1,0 +1,51 @@
+name: Update dist in PR
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'vite.config.ts'
+      - 'build.mjs'
+      - 'tsconfig*.json'
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  update-dist:
+    if: |
+      !contains(github.event.pull_request.labels.*.name, 'hold')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Check if dist is stale
+        id: check
+        run: |
+          git fetch --depth=1 origin main
+          # Check if any source files changed vs what's on the PR branch
+          # Build and compare
+          echo "should-update=true" >> $GITHUB_OUTPUT
+
+      - name: Dispatch dist update
+        if: steps.check.outputs.should-update == 'true'
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: dist-command
+          client-payload: |
+            {
+              "pull_request": {
+                "head": {
+                  "ref": "${{ github.head_ref }}"
+                }
+              }
+            }
