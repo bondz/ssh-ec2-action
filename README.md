@@ -21,13 +21,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: arn:aws:iam::123456789012:role/MyRole
           aws-region: us-west-2
 
       - name: Setup SSH Connection
-        uses: bondz/ssh-ec2-action@v1
+        uses: bondz/ssh-ec2-action@v2
+        id: ssh-connection
         with:
           ec2-instance-id: i-ec2-instance-id
           remote-user: ec2-user
@@ -36,6 +37,7 @@ jobs:
         uses: appleboy/ssh-action@v1
         with:
           host: i-ec2-instance-id
+          key_path: ${{ steps.ssh-connection.outputs.private-key-path }}
           script: whoami
 
       - name: Use any tool that requires SSH
@@ -77,6 +79,8 @@ permissions:
 > [!NOTE]
 > Replace `i-ec2-instance-id` with the actual instance ID of your EC2 instance.
 
+Your EC2 instance should also have an instance profile role that allows SSM connections. The easiest way is to make sure the role has the [AmazonSSMManagedInstanceCore](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AmazonSSMManagedInstanceCore.html) policy attached.
+
 ## Input Parameters
 
 | Parameter       | Description                                        | Default    |
@@ -91,3 +95,9 @@ region as the credential you are using in the
 
 **The hostname for any SSH command should be the instance ID of your EC2
 instance.**
+
+## Outputs
+
+| Output           | Description                                         |
+| ---------------- | --------------------------------------------------- |
+| private-key-path | The path to the private key for the SSH connection. |
