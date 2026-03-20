@@ -76,6 +76,13 @@ jobs:
   run: ssh i-ec2-instance-id "bash -s" -- arg1 arg2 < ./scripts/deploy.sh
 ```
 
+### Pipe content to the remote instance
+
+```yaml
+- name: Pipe file contents to remote
+  run: cat ./scripts/deploy.sh | ssh i-ec2-instance-id "bash -s"
+```
+
 ### Use rsync to copy files
 
 ```yaml
