@@ -92,14 +92,12 @@ describe('cleanup.ts', () => {
       );
     });
 
-    it('should warn when setup did not complete', async () => {
+    it('should skip cleanup when setup did not complete', async () => {
       vi.spyOn(core, 'getState').mockReturnValue('');
 
       await cleanup();
 
-      expect(core.warning).toHaveBeenCalledWith(
-        expect.stringContaining('Setup may not have completed'),
-      );
+      expect(core.info).toHaveBeenCalledWith('Setup did not complete. Skipping cleanup.');
     });
 
     it('should handle SSM failure gracefully during cleanup', async () => {
@@ -120,17 +118,30 @@ describe('cleanup.ts', () => {
       expect(core.info).toHaveBeenCalledWith('SSH via SSM cleanup process finished.');
     });
 
-    it('should fail when aws-region is missing', async () => {
+    it('should warn and skip remote cleanup when aws-region is missing', async () => {
       vi.spyOn(core, 'getInput').mockImplementation(
         mocks.getInput({
           'ec2-instance-id': 'i-123',
           'remote-user': 'ubuntu',
         }),
       );
-      vi.spyOn(core, 'getState').mockReturnValue('');
+      vi.spyOn(core, 'getState').mockImplementation((name: string) => {
+        const state: Record<string, string> = {
+          setupComplete: 'true',
+          keyIdentifier: 'some-key',
+          privateKeyPath: '/home/runner/.ssh/some-key',
+        };
+        return state[name] || '';
+      });
       process.env = {};
 
-      await expect(cleanup()).rejects.toThrow('AWS region not specified');
+      await cleanup();
+
+      expect(core.warning).toHaveBeenCalledWith(
+        'AWS region not available. Skipping remote cleanup.',
+      );
+      const calls = mockedSSMClient.commandCalls(SendCommandCommand);
+      expect(calls).toHaveLength(0);
     });
   });
 });

@@ -27,27 +27,23 @@ async function runCleanupStep(name: string, fn: () => Promise<void>): Promise<vo
 export async function cleanup(): Promise<void> {
   core.info('Starting SSH via SSM cleanup process...');
 
-  const ec2InstanceId = core.getInput('ec2-instance-id', { required: true });
-  const remoteUser = core.getInput('remote-user', { required: true });
-  const setupComplete = core.getState('setupComplete');
+  const setupComplete = !!core.getState('setupComplete');
   const keyIdentifier = core.getState('keyIdentifier');
   const privateKeyPath = core.getState('privateKeyPath');
+
+  if (!setupComplete && !keyIdentifier && !privateKeyPath) {
+    core.info('Setup did not complete. Skipping cleanup.');
+    return;
+  }
+
+  const ec2InstanceId = core.getInput('ec2-instance-id');
+  const remoteUser = core.getInput('remote-user');
 
   const awsRegion =
     core.getInput('aws-region') || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
 
   if (!awsRegion) {
-    throw new Error(
-      'AWS region not specified. Please set the "aws-region" input or AWS_REGION/AWS_DEFAULT_REGION environment variable.',
-    );
-  }
-
-  const ssmClient = new SSMClient({ region: awsRegion });
-
-  if (setupComplete !== 'true' && !keyIdentifier && !privateKeyPath) {
-    core.warning(
-      'Setup may not have completed successfully or no state was saved. Cleanup may be skipped or partial.',
-    );
+    core.warning('AWS region not available. Skipping remote cleanup.');
   }
 
   core.info(
@@ -56,9 +52,10 @@ export async function cleanup(): Promise<void> {
 
   // 1. Remove Public Key from EC2 Instance
   await runCleanupStep('Remove Public Key from EC2', async () => {
-    if (keyIdentifier) {
+    if (setupComplete && keyIdentifier && awsRegion) {
       core.info(`Removing public key ('${keyIdentifier}') from EC2 instance ${ec2InstanceId}...`);
 
+      const ssmClient = new SSMClient({ region: awsRegion });
       const commandToRemoveKey = `sed -i '/${keyIdentifier}/d' ~/.ssh/authorized_keys`;
       const removeKeyCmd = new SendCommandCommand({
         InstanceIds: [ec2InstanceId],
