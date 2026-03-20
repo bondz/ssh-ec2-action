@@ -5,6 +5,7 @@
   "description": "GitHub Actions TypeScript template",
   "keywords": [
     "aws",
+    "compliance",
     "ec2",
     "ssh",
     "ssm"
