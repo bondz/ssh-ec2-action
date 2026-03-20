@@ -18,6 +18,9 @@ inputs:
     description: 'AWS Region of the EC2 instance and SSM. Defaults to the same region your
       AWS Authentication tokens are in'
     required: false
+outputs:
+  private-key-path:
+    description: 'The path to the private key for the SSH connection.'
 
 runs:
   using: node24
