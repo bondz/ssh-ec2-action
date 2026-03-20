@@ -122,6 +122,7 @@ Host ${ec2InstanceId}
     core.saveState('keyIdentifier', keyIdentifier);
     core.saveState('privateKeyPath', PRIVATE_KEY_PATH);
     core.saveState('setupComplete', 'true');
+    core.setOutput('private-key-path', PRIVATE_KEY_PATH);
 
     core.info(
       `SSH setup via SSM complete. Use your EC2 Instance ID: '${ec2InstanceId}' for SSH/rsync.`,
