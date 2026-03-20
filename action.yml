@@ -14,6 +14,10 @@ inputs:
   remote-user:
     description: 'Remote user for SSH (e.g., ubuntu, ec2-user).'
     required: true
+  ssh-port:
+    description: 'SSH port on the remote EC2 instance.'
+    required: false
+    default: '22'
   aws-region:
     description: 'AWS Region of the EC2 instance and SSM. Defaults to the same region your
       AWS Authentication tokens are in'

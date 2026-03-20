@@ -71,6 +71,22 @@ describe('main.ts', () => {
     });
   });
 
+  describe('custom ssh port', () => {
+    it('should use custom ssh port in SSH config', async () => {
+      const customInputs = { ...mocks.TEST_INPUTS, 'ssh-port': '5792' };
+      vi.spyOn(core, 'getInput').mockImplementation(mocks.getInput(customInputs));
+      mockedSSMClient.on(SendCommandCommand).resolvesOnce(mocks.outputs.UPDATE_SSM_DOCUMENT);
+
+      const { promises: fs } = await import('node:fs');
+      await run();
+
+      const appendCall = vi.mocked(fs.appendFile).mock.calls[0];
+      const sshConfig = appendCall[1] as string;
+      expect(sshConfig).toContain("portNumber=5792'");
+      expect(sshConfig).toContain('Port 5792');
+    });
+  });
+
   describe('error handling', () => {
     it('should fail when aws-region is missing', async () => {
       vi.spyOn(core, 'getInput').mockImplementation(

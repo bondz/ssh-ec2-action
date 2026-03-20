@@ -21,6 +21,7 @@ export async function run(): Promise<void> {
 
     const ec2InstanceId = core.getInput('ec2-instance-id', { required: true });
     const remoteUser = core.getInput('remote-user', { required: true });
+    const sshPort = core.getInput('ssh-port') || '22';
     const awsRegion =
       core.getInput('aws-region') || process.env.AWS_REGION || process.env.AWS_DEFAULT_REGION;
 
@@ -103,7 +104,8 @@ export async function run(): Promise<void> {
     const sshConfigContent = `
 # SSH config for SSM session
 Host ${ec2InstanceId}
-  ProxyCommand ${proxyRunner} "aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=%p' --region ${awsRegion}"
+  Port ${sshPort}
+  ProxyCommand ${proxyRunner} "aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=${sshPort}' --region ${awsRegion}"
   User ${remoteUser}
   IdentityFile ${PRIVATE_KEY_PATH}
   StrictHostKeyChecking no
