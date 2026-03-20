@@ -87,6 +87,7 @@ Your EC2 instance should also have an instance profile role that allows SSM conn
 | --------------- | -------------------------------------------------- | ---------- |
 | ec2-instance-id | The ID of the ec2 instance you want to connect to. |            |
 | remote-user     | The user on the server to run commands             |            |
+| ssh-port        | SSH port on the remote EC2 instance.               | 22         |
 | region          | The region your ec2 instance is in.                | AWS_REGION |
 
 You don't need to set the `region` parameter if your instance is in the same
