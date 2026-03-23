@@ -37,7 +37,7 @@ jobs:
 
       - name: Dispatch dist update
         if: steps.check.outputs.should-update == 'true'
-        uses: peter-evans/repository-dispatch@v3
+        uses: peter-evans/repository-dispatch@v4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           event-type: dist-command
