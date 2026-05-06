@@ -2,7 +2,7 @@ import { build } from 'vite-plus';
 
 const entries = [
   { input: 'src/index.ts', dir: 'dist', file: 'index.js' },
-  { input: 'src/cleanup/index.ts', dir: 'dist/cleanup', file: 'index.js' },
+  { input: 'src/proxy.ts', dir: 'dist', file: 'proxy.js' },
 ];
 
 for (const entry of entries) {
@@ -12,6 +12,7 @@ for (const entry of entries) {
       target: 'node24',
       ssr: true,
       minify: true,
+      emptyOutDir: false,
       rolldownOptions: {
         input: entry.input,
         output: {
