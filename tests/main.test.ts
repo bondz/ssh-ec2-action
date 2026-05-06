@@ -56,11 +56,22 @@ describe('main.ts', () => {
 
       expect(sshConfig).toContain(`Host ${mocks.TEST_INPUTS['ec2-instance-id']}`);
       expect(sshConfig).toContain('ProxyCommand ');
-      expect(sshConfig).toMatch(/ProxyCommand\s+".*node.*"\s+".*\/proxy\.js"/);
-      expect(sshConfig).toContain('--region "fake-region-1"');
-      expect(sshConfig).toContain('--user "fake-user"');
-      expect(sshConfig).toContain('--public-key-path "');
+      expect(sshConfig).toMatch(/ProxyCommand\s+'.*node.*'\s+'.*\/proxy\.js'/);
+      expect(sshConfig).toContain("--region 'us-west-2'");
+      expect(sshConfig).toContain("--user 'fake-user'");
+      expect(sshConfig).toContain("--public-key-path '");
       expect(sshConfig).toMatch(/--port 22 %h/);
+    });
+
+    it('should explicitly restrict private key permissions', async () => {
+      const { promises: fs } = await import('node:fs');
+
+      await run();
+
+      expect(fs.chmod).toHaveBeenCalledWith(
+        expect.stringContaining('.ssh/gh-actions-ssm-host-'),
+        0o600,
+      );
     });
   });
 
@@ -107,33 +118,33 @@ describe('main.ts', () => {
       );
     });
 
-    it('should reject inputs containing newlines', async () => {
+    it('should reject remote users containing shell metacharacters', async () => {
       vi.spyOn(core, 'getInput').mockImplementation(
         mocks.getInput({
           ...mocks.TEST_INPUTS,
-          'remote-user': 'ubuntu\nHost evil',
+          'remote-user': 'ubuntu$(touch hacked)',
         }),
       );
 
       await run();
 
       expect(core.setFailed).toHaveBeenCalledWith(
-        expect.stringContaining('must not contain newline'),
+        expect.stringContaining('Input "remote-user" must start with a letter'),
       );
     });
 
-    it('should reject inputs containing double quotes', async () => {
+    it('should reject regions containing shell metacharacters', async () => {
       vi.spyOn(core, 'getInput').mockImplementation(
         mocks.getInput({
           ...mocks.TEST_INPUTS,
-          'remote-user': 'foo"bar',
+          'aws-region': 'us-west-2$(touch hacked)',
         }),
       );
 
       await run();
 
       expect(core.setFailed).toHaveBeenCalledWith(
-        expect.stringContaining('must not contain newline or quote'),
+        expect.stringContaining('Input "aws-region" must be an AWS region'),
       );
     });
 

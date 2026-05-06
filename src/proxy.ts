@@ -27,6 +27,10 @@ if (!host || !region || !user || !publicKeyPath) {
 }
 
 const publicKey = readFileSync(publicKeyPath, 'utf8').trim();
+if (!publicKey || /[\r\n]/.test(publicKey)) {
+  console.error('public key file must contain exactly one non-empty line');
+  process.exit(2);
+}
 
 const send = spawnSync(
   'aws',

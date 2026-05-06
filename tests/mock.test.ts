@@ -4,7 +4,7 @@ const inputs = {
   TEST_INPUTS: {
     'ec2-instance-id': 'i-1234567890abcdef0',
     'remote-user': 'fake-user',
-    'aws-region': 'fake-region-1',
+    'aws-region': 'us-west-2',
   },
 };
 

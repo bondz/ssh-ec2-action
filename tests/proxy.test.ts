@@ -4,7 +4,7 @@ import { mkdtempSync, writeFileSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
-const PROXY = path.resolve(import.meta.dirname, '..', 'dist', 'proxy.js');
+const PROXY = path.resolve(import.meta.dirname, '..', 'src', 'proxy.ts');
 
 let tmp: string;
 let logPath: string;
@@ -155,10 +155,28 @@ describe('proxy.js', () => {
     expect(stderr).toContain('usage:');
   });
 
+  it('exits 2 when the public key file has multiple lines', () => {
+    writeFileSync(keyPath, 'ssh-ed25519 AAAAFAKEKEY user@host\nssh-ed25519 OTHER user@host\n');
+    makeFakeAws('succeed');
+
+    const { status, stderr } = runProxy([
+      '--region',
+      'us-west-2',
+      '--user',
+      'ec2-user',
+      '--public-key-path',
+      keyPath,
+      'i-x',
+    ]);
+
+    expect(status).toBe(2);
+    expect(stderr).toContain('public key file must contain exactly one non-empty line');
+  });
+
   it('reads the public key from the file (not from a flag)', () => {
-    // Multi-line content with spaces and special characters; if we ever
-    // regress to interpolating the key into a shell template, this would
-    // fail. Through argv it goes through cleanly.
+    // Content with spaces and special characters; if we ever regress to
+    // interpolating the key into a shell template, this would fail. Through
+    // argv it goes through cleanly.
     writeFileSync(keyPath, 'ssh-ed25519 AAAA"weird key with spaces\' user@h\n');
     makeFakeAws('succeed');
 

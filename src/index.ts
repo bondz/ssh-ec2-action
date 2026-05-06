@@ -12,14 +12,23 @@ const PUBLIC_KEY_PATH = PRIVATE_KEY_PATH + '.pub';
 const PROXY_SCRIPT_PATH = path.join(import.meta.dirname, 'proxy.js');
 const keyIdentifier = SSH_HOST_ALIAS + '-' + (process.env.GITHUB_RUN_ID || 'local');
 
-function assertConfigSafe(name: string, value: string): void {
-  if (/[\r\n"]/.test(value)) {
-    throw new Error(`Input "${name}" must not contain newline or quote characters.`);
+function assertInputMatches(
+  name: string,
+  value: string,
+  pattern: RegExp,
+  description: string,
+): void {
+  if (!pattern.test(value)) {
+    throw new Error(`Input "${name}" must ${description}, got "${value}".`);
   }
 }
 
 function toForwardSlash(p: string): string {
   return p.replaceAll('\\', '/');
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }
 
 export async function run(): Promise<void> {
@@ -38,9 +47,24 @@ export async function run(): Promise<void> {
       );
     }
 
-    assertConfigSafe('ec2-instance-id', ec2InstanceId);
-    assertConfigSafe('remote-user', remoteUser);
-    assertConfigSafe('aws-region', awsRegion);
+    assertInputMatches(
+      'ec2-instance-id',
+      ec2InstanceId,
+      /^i-[0-9a-fA-F]{8,17}$/,
+      'be an EC2 instance ID like i-1234567890abcdef0',
+    );
+    assertInputMatches(
+      'remote-user',
+      remoteUser,
+      /^[A-Za-z_][A-Za-z0-9._-]{0,63}$/,
+      'start with a letter or underscore and contain only letters, numbers, dot, underscore, or hyphen',
+    );
+    assertInputMatches(
+      'aws-region',
+      awsRegion,
+      /^[a-z]{2}(?:-[a-z]+)+-\d$/,
+      'be an AWS region like us-west-2',
+    );
     if (!/^[1-9]\d{0,4}$/.test(sshPort) || Number(sshPort) > 65535) {
       throw new Error(`ssh-port must be an integer between 1 and 65535, got "${sshPort}".`);
     }
@@ -62,6 +86,7 @@ export async function run(): Promise<void> {
       '-C',
       keyIdentifier,
     ]);
+    await fs.chmod(PRIVATE_KEY_PATH, 0o600);
 
     core.info(`SSH key generated. Public key identifier: ${keyIdentifier}`);
     core.endGroup();
@@ -72,14 +97,14 @@ export async function run(): Promise<void> {
     core.info(`Configuring SSH alias for EC2 Instance in ${sshConfigPath}...`);
 
     const proxyCommand = [
-      `"${toForwardSlash(process.execPath)}"`,
-      `"${toForwardSlash(PROXY_SCRIPT_PATH)}"`,
+      shellQuote(toForwardSlash(process.execPath)),
+      shellQuote(toForwardSlash(PROXY_SCRIPT_PATH)),
       '--region',
-      `"${awsRegion}"`,
+      shellQuote(awsRegion),
       '--user',
-      `"${remoteUser}"`,
+      shellQuote(remoteUser),
       '--public-key-path',
-      `"${toForwardSlash(PUBLIC_KEY_PATH)}"`,
+      shellQuote(toForwardSlash(PUBLIC_KEY_PATH)),
       '--port',
       sshPort,
       '%h',
