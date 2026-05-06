@@ -1,11 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vite-plus/test';
 import * as core from '../__fixtures__/core.js';
-import { mockClient } from 'aws-sdk-client-mock';
-import { SendCommandCommand, SSMClient } from '@aws-sdk/client-ssm';
 import mocks from './mock.test';
 import { run } from '../src/index';
-
-const mockedSSMClient = mockClient(SSMClient);
 
 vi.mock('@actions/core', () => core);
 vi.mock('@actions/exec', () => ({
@@ -13,12 +9,11 @@ vi.mock('@actions/exec', () => ({
 }));
 vi.mock('@actions/io', () => ({
   mkdirP: vi.fn().mockResolvedValue(undefined),
-  rmRF: vi.fn().mockResolvedValue(undefined),
 }));
 vi.mock('node:fs', () => ({
   promises: {
-    readFile: vi.fn().mockResolvedValue('ecdsa-sha2-nistp256 AAAA... key-id\n'),
     appendFile: vi.fn().mockResolvedValue(undefined),
+    chmod: vi.fn().mockResolvedValue(undefined),
   },
 }));
 
@@ -26,14 +21,12 @@ describe('main.ts', () => {
   beforeEach(() => {
     vi.restoreAllMocks();
     vi.clearAllMocks();
-    mockedSSMClient.reset();
     process.env = { ...mocks.envs };
   });
 
   describe('run', () => {
     beforeEach(() => {
       vi.spyOn(core, 'getInput').mockImplementation(mocks.getInput(mocks.TEST_INPUTS));
-      mockedSSMClient.on(SendCommandCommand).resolvesOnce(mocks.outputs.UPDATE_SSM_DOCUMENT);
     });
 
     it('should run successfully', async () => {
@@ -43,47 +36,68 @@ describe('main.ts', () => {
       expect(core.setFailed).not.toHaveBeenCalled();
     });
 
-    it('should save state on success', async () => {
+    it('should set the private key output on success', async () => {
       await run();
 
-      expect(core.saveState).toHaveBeenCalledWith('setupComplete', 'true');
-      expect(core.saveState).toHaveBeenCalledWith(
-        'keyIdentifier',
-        expect.stringContaining('gh-actions-ssm-host-'),
+      expect(core.setOutput).toHaveBeenCalledWith(
+        'private-key-path',
+        expect.stringContaining('.ssh/gh-actions-ssm-host-'),
       );
-      expect(core.saveState).toHaveBeenCalledWith(
-        'privateKeyPath',
-        expect.stringContaining('.ssh/'),
-      );
+      expect(core.saveState).not.toHaveBeenCalled();
     });
 
-    it('should send SSM command to add public key', async () => {
+    it('should write an SSH config that invokes the bundled proxy', async () => {
+      const { promises: fs } = await import('node:fs');
+
       await run();
 
-      const calls = mockedSSMClient.commandCalls(SendCommandCommand);
-      expect(calls).toHaveLength(1);
+      const appendCall = vi.mocked(fs.appendFile).mock.calls[0];
+      const sshConfig = appendCall[1] as string;
 
-      const input = calls[0].args[0].input;
-      expect(input.InstanceIds).toEqual(['i-1234567890abcdef0']);
-      expect(input.DocumentName).toBe('AWS-RunShellScript');
-      expect(input.Parameters?.commands?.[0]).toContain('fake-user');
-      expect(input.Parameters?.commands?.[0]).toContain('authorized_keys');
+      expect(sshConfig).toContain(`Host ${mocks.TEST_INPUTS['ec2-instance-id']}`);
+      expect(sshConfig).toContain('ProxyCommand ');
+      expect(sshConfig).toMatch(/ProxyCommand\s+'.*node.*'\s+'.*\/proxy\.js'/);
+      expect(sshConfig).toContain("--region 'us-west-2'");
+      expect(sshConfig).toContain("--user 'fake-user'");
+      expect(sshConfig).toContain("--public-key-path '");
+      expect(sshConfig).toMatch(/--port 22 %h/);
+    });
+
+    it('should explicitly restrict private key permissions', async () => {
+      const { promises: fs } = await import('node:fs');
+
+      await run();
+
+      expect(fs.chmod).toHaveBeenCalledWith(
+        expect.stringContaining('.ssh/gh-actions-ssm-host-'),
+        0o600,
+      );
     });
   });
 
   describe('custom ssh port', () => {
-    it('should use custom ssh port in SSH config', async () => {
+    it('should use custom ssh port in SSH config and ProxyCommand flag', async () => {
       const customInputs = { ...mocks.TEST_INPUTS, 'ssh-port': '5792' };
       vi.spyOn(core, 'getInput').mockImplementation(mocks.getInput(customInputs));
-      mockedSSMClient.on(SendCommandCommand).resolvesOnce(mocks.outputs.UPDATE_SSM_DOCUMENT);
 
       const { promises: fs } = await import('node:fs');
       await run();
 
       const appendCall = vi.mocked(fs.appendFile).mock.calls[0];
       const sshConfig = appendCall[1] as string;
-      expect(sshConfig).toContain("portNumber=5792'");
+
       expect(sshConfig).toContain('Port 5792');
+      expect(sshConfig).toContain('--port 5792 %h');
+    });
+  });
+
+  describe('host key checking', () => {
+    it('should accept and persist new host keys', async () => {
+      const { promises: fs } = await import('node:fs');
+      await run();
+      const sshConfig = vi.mocked(fs.appendFile).mock.calls[0][1] as string;
+      expect(sshConfig).toContain('StrictHostKeyChecking accept-new');
+      expect(sshConfig).not.toContain('UserKnownHostsFile');
     });
   });
 
@@ -104,28 +118,58 @@ describe('main.ts', () => {
       );
     });
 
-    it('should save state even on failure', async () => {
+    it('should reject remote users containing shell metacharacters', async () => {
       vi.spyOn(core, 'getInput').mockImplementation(
         mocks.getInput({
-          'ec2-instance-id': 'i-123',
-          'remote-user': 'ubuntu',
+          ...mocks.TEST_INPUTS,
+          'remote-user': 'ubuntu$(touch hacked)',
         }),
       );
-      process.env = { GITHUB_RUN_ID: 'test' };
 
       await run();
 
-      expect(core.saveState).toHaveBeenCalledWith('keyIdentifier', expect.any(String));
-      expect(core.saveState).toHaveBeenCalledWith('privateKeyPath', expect.any(String));
+      expect(core.setFailed).toHaveBeenCalledWith(
+        expect.stringContaining('Input "remote-user" must start with a letter'),
+      );
     });
 
-    it('should fail when SSM command fails', async () => {
-      vi.spyOn(core, 'getInput').mockImplementation(mocks.getInput(mocks.TEST_INPUTS));
-      mockedSSMClient.on(SendCommandCommand).rejectsOnce(new Error('SSM service unavailable'));
+    it('should reject regions containing shell metacharacters', async () => {
+      vi.spyOn(core, 'getInput').mockImplementation(
+        mocks.getInput({
+          ...mocks.TEST_INPUTS,
+          'aws-region': 'us-west-2$(touch hacked)',
+        }),
+      );
 
       await run();
 
-      expect(core.setFailed).toHaveBeenCalledWith('SSM service unavailable');
+      expect(core.setFailed).toHaveBeenCalledWith(
+        expect.stringContaining('Input "aws-region" must be an AWS region'),
+      );
+    });
+
+    it('should reject non-numeric ssh-port', async () => {
+      vi.spyOn(core, 'getInput').mockImplementation(
+        mocks.getInput({ ...mocks.TEST_INPUTS, 'ssh-port': '22; rm -rf /' }),
+      );
+
+      await run();
+
+      expect(core.setFailed).toHaveBeenCalledWith(
+        expect.stringContaining('ssh-port must be an integer'),
+      );
+    });
+
+    it('should reject ssh-port above 65535', async () => {
+      vi.spyOn(core, 'getInput').mockImplementation(
+        mocks.getInput({ ...mocks.TEST_INPUTS, 'ssh-port': '70000' }),
+      );
+
+      await run();
+
+      expect(core.setFailed).toHaveBeenCalledWith(
+        expect.stringContaining('ssh-port must be an integer'),
+      );
     });
   });
 });

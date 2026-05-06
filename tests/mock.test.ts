@@ -4,15 +4,7 @@ const inputs = {
   TEST_INPUTS: {
     'ec2-instance-id': 'i-1234567890abcdef0',
     'remote-user': 'fake-user',
-    'aws-region': 'fake-region-1',
-  },
-};
-
-const outputs = {
-  UPDATE_SSM_DOCUMENT: {
-    Command: {
-      CommandId: 'fake-command-id',
-    },
+    'aws-region': 'us-west-2',
   },
 };
 
@@ -40,6 +32,5 @@ export default {
     };
   },
   ...inputs,
-  outputs,
   envs,
 } as const;

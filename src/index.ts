@@ -1,19 +1,35 @@
 import * as core from '@actions/core';
 import * as exec from '@actions/exec';
-import * as io from '@actions/io';
+import { mkdirP } from '@actions/io';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { SSMClient, SendCommandCommand } from '@aws-sdk/client-ssm';
 
-// Constants
 const SSH_HOST_ALIAS = 'gh-actions-ssm-host-' + crypto.randomUUID();
 const SSH_DIR = path.join(os.homedir(), '.ssh');
-const PRIVATE_KEY_FILENAME = SSH_HOST_ALIAS + '-key';
-const PRIVATE_KEY_PATH = path.join(SSH_DIR, PRIVATE_KEY_FILENAME);
+const PRIVATE_KEY_PATH = path.join(SSH_DIR, SSH_HOST_ALIAS + '-key');
 const PUBLIC_KEY_PATH = PRIVATE_KEY_PATH + '.pub';
+const PROXY_SCRIPT_PATH = path.join(import.meta.dirname, 'proxy.js');
 const keyIdentifier = SSH_HOST_ALIAS + '-' + (process.env.GITHUB_RUN_ID || 'local');
-const SCRIPT_TIMEOUT_SECONDS = 300;
+
+function assertInputMatches(
+  name: string,
+  value: string,
+  pattern: RegExp,
+  description: string,
+): void {
+  if (!pattern.test(value)) {
+    throw new Error(`Input "${name}" must ${description}, got "${value}".`);
+  }
+}
+
+function toForwardSlash(p: string): string {
+  return p.replaceAll('\\', '/');
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
+}
 
 export async function run(): Promise<void> {
   try {
@@ -31,29 +47,38 @@ export async function run(): Promise<void> {
       );
     }
 
-    const ssmClient = new SSMClient({
-      region: awsRegion,
-    });
+    assertInputMatches(
+      'ec2-instance-id',
+      ec2InstanceId,
+      /^i-[0-9a-fA-F]{8,17}$/,
+      'be an EC2 instance ID like i-1234567890abcdef0',
+    );
+    assertInputMatches(
+      'remote-user',
+      remoteUser,
+      /^[A-Za-z_][A-Za-z0-9._-]{0,63}$/,
+      'start with a letter or underscore and contain only letters, numbers, dot, underscore, or hyphen',
+    );
+    assertInputMatches(
+      'aws-region',
+      awsRegion,
+      /^[a-z]{2}(?:-[a-z]+)+-\d$/,
+      'be an AWS region like us-west-2',
+    );
+    if (!/^[1-9]\d{0,4}$/.test(sshPort) || Number(sshPort) > 65535) {
+      throw new Error(`ssh-port must be an integer between 1 and 65535, got "${sshPort}".`);
+    }
 
     core.endGroup();
 
     core.startGroup('Setup SSH via SSM: Generating SSH Keys');
 
-    await io.mkdirP(SSH_DIR);
+    await mkdirP(SSH_DIR);
     core.info(`Generating SSH key pair at ${PRIVATE_KEY_PATH}...`);
-
-    // Clean up potential leftover keys from previous runs
-    try {
-      await Promise.all([io.rmRF(PRIVATE_KEY_PATH), io.rmRF(PUBLIC_KEY_PATH)]);
-    } catch {
-      /* ignore */
-    }
 
     await exec.exec('ssh-keygen', [
       '-t',
-      'ecdsa',
-      '-b',
-      '256',
+      'ed25519',
       '-N',
       '',
       '-f',
@@ -61,34 +86,9 @@ export async function run(): Promise<void> {
       '-C',
       keyIdentifier,
     ]);
-    await exec.exec('chmod', ['600', PRIVATE_KEY_PATH]);
-
-    const publicKeyContent = (await fs.readFile(PUBLIC_KEY_PATH, 'utf8')).trim();
+    await fs.chmod(PRIVATE_KEY_PATH, 0o600);
 
     core.info(`SSH key generated. Public key identifier: ${keyIdentifier}`);
-    core.endGroup();
-
-    core.startGroup('Setup SSH via SSM: Configuring EC2 Instance');
-
-    core.info(`Adding public key (${keyIdentifier}) to EC2 instance ${ec2InstanceId}...`);
-
-    const escapedPublicKeyWithId = publicKeyContent.replace(/'/g, "'\\''"); // Escape single quotes for shell
-    const commandToAddKey = `mkdir -p ~/.ssh && echo '${escapedPublicKeyWithId}' >> ~/.ssh/authorized_keys && chmod 600 ~/.ssh/authorized_keys && chmod 700 ~/.ssh`;
-    const addKeyCmd = new SendCommandCommand({
-      InstanceIds: [ec2InstanceId],
-      DocumentName: 'AWS-RunShellScript',
-      Parameters: {
-        commands: [`sudo su - ${remoteUser} -c "${commandToAddKey}"`],
-      },
-      Comment: `Add temporary SSH key: ${keyIdentifier}`,
-      TimeoutSeconds: SCRIPT_TIMEOUT_SECONDS,
-    });
-    const sendAddKeyResult = await ssmClient.send(addKeyCmd);
-    core.debug(
-      `SSM SendCommand (Add Key) result: ${JSON.stringify(sendAddKeyResult.Command?.CommandId)}`,
-    );
-    core.info('Command to add public key sent to EC2 instance. Waiting for propagation...');
-
     core.endGroup();
 
     core.startGroup('Setup SSH via SSM: Configuring Local SSH Client');
@@ -96,34 +96,42 @@ export async function run(): Promise<void> {
     const sshConfigPath = path.join(SSH_DIR, 'config');
     core.info(`Configuring SSH alias for EC2 Instance in ${sshConfigPath}...`);
 
-    const proxyRunner =
-      os.platform() === 'win32'
-        ? 'C:\\Windows\\System32\\WindowsPowerShell\\v1.0\\powershell.exe'
-        : 'sh -c';
+    const proxyCommand = [
+      shellQuote(toForwardSlash(process.execPath)),
+      shellQuote(toForwardSlash(PROXY_SCRIPT_PATH)),
+      '--region',
+      shellQuote(awsRegion),
+      '--user',
+      shellQuote(remoteUser),
+      '--public-key-path',
+      shellQuote(toForwardSlash(PUBLIC_KEY_PATH)),
+      '--port',
+      sshPort,
+      '%h',
+    ].join(' ');
+
+    const identityFile = `"${toForwardSlash(PRIVATE_KEY_PATH)}"`;
 
     const sshConfigContent = `
-# SSH config for SSM session
+# SSH config for SSM session with EC2 Instance Connect ephemeral keys
 Host ${ec2InstanceId}
   Port ${sshPort}
-  ProxyCommand ${proxyRunner} "aws ssm start-session --target %h --document-name AWS-StartSSHSession --parameters 'portNumber=${sshPort}' --region ${awsRegion}"
+  ProxyCommand ${proxyCommand}
   User ${remoteUser}
-  IdentityFile ${PRIVATE_KEY_PATH}
-  StrictHostKeyChecking no
-  UserKnownHostsFile /dev/null
+  IdentityFile ${identityFile}
+  IdentitiesOnly yes
+  StrictHostKeyChecking accept-new
   ConnectTimeout 20
   LogLevel ERROR
 `;
     await fs.appendFile(sshConfigPath, sshConfigContent);
-    await exec.exec('chmod', ['600', sshConfigPath]);
+    await fs.chmod(sshConfigPath, 0o600);
     core.info(`SSH config alias for EC2 Instance added.`);
 
     core.endGroup();
 
     core.startGroup('Setup SSH via SSM: Finalizing');
 
-    core.saveState('keyIdentifier', keyIdentifier);
-    core.saveState('privateKeyPath', PRIVATE_KEY_PATH);
-    core.saveState('setupComplete', 'true');
     core.setOutput('private-key-path', PRIVATE_KEY_PATH);
 
     core.info(
@@ -131,9 +139,6 @@ Host ${ec2InstanceId}
     );
     core.endGroup();
   } catch (error: unknown) {
-    core.saveState('keyIdentifier', keyIdentifier);
-    core.saveState('privateKeyPath', PRIVATE_KEY_PATH);
-
     core.setFailed(error instanceof Error ? error.message : String(error));
 
     if (process.env.SHOW_STACK_TRACE === 'true') {
@@ -142,6 +147,4 @@ Host ${ec2InstanceId}
   }
 }
 
-(async () => {
-  await run();
-})();
+await run();

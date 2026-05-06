@@ -1,6 +1,6 @@
 name: Create an SSH Session to an EC2 instance via SSM
-description: Establishes an SSH connection to EC2 via SSM using AWS SDK without having to
-  setup SSH keys
+description: Establishes an SSH connection to EC2 via SSM using EC2 Instance Connect
+  ephemeral SSH keys
 author: Bond
 
 branding:
@@ -29,4 +29,3 @@ outputs:
 runs:
   using: node24
   main: dist/index.js
-  post: dist/cleanup/index.js

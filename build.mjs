@@ -1,9 +1,12 @@
 import { build } from 'vite-plus';
+import { rm } from 'node:fs/promises';
 
 const entries = [
   { input: 'src/index.ts', dir: 'dist', file: 'index.js' },
-  { input: 'src/cleanup/index.ts', dir: 'dist/cleanup', file: 'index.js' },
+  { input: 'src/proxy.ts', dir: 'dist', file: 'proxy.js' },
 ];
+
+await rm('dist', { recursive: true, force: true });
 
 for (const entry of entries) {
   await build({
@@ -12,6 +15,7 @@ for (const entry of entries) {
       target: 'node24',
       ssr: true,
       minify: true,
+      emptyOutDir: false,
       rolldownOptions: {
         input: entry.input,
         output: {
