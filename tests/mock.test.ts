@@ -8,14 +8,6 @@ const inputs = {
   },
 };
 
-const outputs = {
-  UPDATE_SSM_DOCUMENT: {
-    Command: {
-      CommandId: 'fake-command-id',
-    },
-  },
-};
-
 const envs = {
   GITHUB_RUN_ID: 'MY-RUN-ID',
 };
@@ -40,6 +32,5 @@ export default {
     };
   },
   ...inputs,
-  outputs,
   envs,
 } as const;
