@@ -4,7 +4,6 @@ export default defineConfig({
   test: {
     passWithNoTests: true,
     include: ['tests/**/*.test.ts'],
-    coverage: { enabled: true },
     typecheck: { tsconfig: './tsconfig.base.json' },
   },
   staged: {
@@ -12,10 +11,14 @@ export default defineConfig({
   },
   lint: {
     plugins: ['oxc', 'typescript', 'unicorn', 'import'],
+    options: {
+      typeAware: true,
+      typeCheck: true,
+    },
     categories: {
       correctness: 'warn',
     },
-    ignorePatterns: ['**/coverage', '**/dist', '**/node_modules'],
+    ignorePatterns: ['**/dist', '**/node_modules'],
   },
   fmt: {
     tabWidth: 2,
@@ -26,6 +29,6 @@ export default defineConfig({
     bracketSpacing: true,
     arrowParens: 'always',
     endOfLine: 'lf',
-    ignorePatterns: ['.DS_Store', '.licenses/', 'dist/', 'node_modules/', 'coverage/'],
+    ignorePatterns: ['.DS_Store', '.licenses/', 'dist/', 'node_modules/'],
   },
 });
